@@ -1,0 +1,4 @@
+nympy
+pandas
+sklearn
+scipy
