@@ -1,10 +1,12 @@
 
 
-You sould have python3, Git, pip3 on your compter https://pip.pypa.io/en/stable/installing/
+You sould have python3, Git, pip3  jupyter notebook on your compter https://pip.pypa.io/en/stable/installing/
 
 https://git-scm.com/book/ru/v1/%D0%92%D0%B2%D0%B5%D0%B4%D0%B5%D0%BD%D0%B8%D0%B5-%D0%A3%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0-Git
 
 https://www.python.org/downloads/
+
+https://jupyter.readthedocs.io/en/latest/install.html
 
 Before installing and lounching script you shold intall virtualenv in terminal:
 
@@ -26,3 +28,6 @@ Install all requirements from file requirements.txt with command in terminal:
 
 $ pip3 install -r requirements.txt
 
+Lounch Jupyter Notebook
+
+$ jupyter notebook
