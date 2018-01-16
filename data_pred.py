@@ -6,7 +6,7 @@ Created on Tue Dec 26 21:13:06 2017
 """
 
 
-import re
+
 import sys
 
 import pandas as pd
@@ -19,14 +19,15 @@ from sklearn.linear_model import LogisticRegression, RidgeClassifier
 from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
 
 
-def  tax_sys(train, li):
-    """Change stings from pandas Serias to its numer in list of unique strings"""
-    for i in range(len (li)):
-        train[train == li[i]] = i
+def  tax_sys(data_seria, unic_list):
+    """Change sting from pandas Serias to its numer in list of unique strings"""
+    for i in range(len (unic_list)):
+        data_seria[data_seria == unic_list[i]] = i
     
-    return train
+    return data_seria
 
             
 def how_old(data) :
@@ -34,46 +35,52 @@ def how_old(data) :
     For making from continioudsly datafor making prediction more easy 
     and for avoiding overfitting
     
-    Make numerical parametrs from date .
-            0- less then year
-            1- less then 2 years
-            2- less then 5 years
-            3- less then 10 years
-            4- more then 10 years 
-            None- if there is no date or it has illegal format"""
+    Make numerical parametrs from date:
+            0 - less then year
+            1 - less then 2 years
+            2 - less then 5 years
+            3 - less then 10 years
+            4 - more then 10 years 
+            None - if there is no date or it has illegal format
+    """
 
-
+    NUMBER_DAYS = 365
     out = data.fillna("01.01.0001") 
     now = dt.datetime.now()
-    
+
+  
     for i in range(len(data)):
-        
+       
         try:           
             date = dt.datetime.strptime(str(out[i]), "%Y-%m-%d" )
             
-        except ValueError:            
+        except ValueError: 
+            
             try:
                 date = dt.datetime.strptime(str(out[i]), "%d.%m.%Y" )
                 
             except ValueError:
-                 date = dt.datetime(1,1,1)   
-            
-        difff = now - date
-        dif = difff.days//365
+                #if item has illegal format
+                 date = dt.datetime(1,1,1)  
+                 
+          
+        difference = now - date
         
-        if dif < 1:
+        dif_years = difference.days // NUMBER_DAYS
+        
+        if dif_years < 1:
             out[i] = 0
             
-        elif dif < 2 :
+        elif dif_years < 2 :
             out[i] = 1
             
-        elif dif < 5 :
+        elif dif_years < 5 :
             out[i] = 2 
             
-        elif dif < 10 :
+        elif dif_years < 10 :
             out[i] = 3
             
-        elif dif > 10 : 
+        elif dif_years > 10 : 
             out[i] = 4
             
         else:
@@ -82,143 +89,71 @@ def how_old(data) :
     return out
 
 
-def estimate(norm_data,target):
+def find_best_estimator(norm_data,target):
     """Finding best predictor on train set. 
     Takes args: train set 2d-array like, target list-like.
     Returns classifier with best bapams with best accuracy"""
     
-    # making train /test split from train set for choosing best classificator
-    RAND_STATE = 42         #for some random
-    X_train,X_test,y_train,y_test = train_test_split(norm_data,target,test_size=0.4, random_state=RAND_STATE)
+    RAND_STATE = 42    
     
-#    lists will contain best params and esimators with them
-    list_estim = []
-    list_best_param = []
+    X_train,X_test,y_train,y_test = train_test_split(norm_data,target, \
+                                        test_size=0.4, random_state=RAND_STATE)
+     
+    best_estimtor = []
+    best_est_skore = []
+    params = []             
+    list_est = []
     
-#    making many classificators
-    print("finding best classificator: ...")    
+#    knn
+    list_est.append( KNeighborsClassifier(n_neighbors=3,) )    
+    ALG = ['ball_tree','kd_tree']  
+    leafes = [int(i) for i in range(10,40,5)]
+    params.append(dict(leaf_size=leafes, algorithm=ALG))
     
-    #KNN
+#    logistic regr
+    list_est.append( LogisticRegression() )    
+    c =[i for i in range(2,10)] 
+    t = [(0.1)**i for i in range(6)]
+    params.append(dict(C=c, tol=t))
+        
+#    linear regression
+    list_est.append( LinearSVC() )    
+    c =[i for i in range(2,10)] 
+    t = [(0.1)**i for i in range(6)]
+    params.append(dict(C=c, tol=t))
+             
+#    ridge clasfier
+    list_est.append( RidgeClassifier() )    
+    alp =[(0.1)**i for i in range(-6,1,1)] 
+    t = [(0.1)**i for i in range(6)]
+    params.append(dict(alpha=alp, tol=t))
     
-    neighbours={}
-    ALG={0:'ball_tree',1:'kd_tree'}
-    
-    for  i in range(10,40,5):
-        for j in range(2):
-            
-            neigh = KNeighborsClassifier(n_neighbors=3, leaf_size=i,algorithm =ALG[j])
-            neigh.fit(X_train, y_train)
-            neighbours[str(i)+" alg="+str(j)] = neigh.score(X_test,y_test)
-            
-    list_best_param,list_estim = fil_best(neighbours, list_best_param,list_estim)        
-
-
-    print ("knn checked ...")
-    
-    #logistic Regression
-    
-    log_regr={}
-    
-    for c in  range(2,10,2):
-        for t  in [(0.1)**i for i in range(6)]:
-            
-            log = LogisticRegression(C=c, tol=t)
-            log.fit(X_train, y_train)
-            log_regr[str(c)+" Tol="+str(t)] = log.score(X_test,y_test)  
-                   
-    list_best_param,list_estim = fil_best(log_regr, list_best_param,list_estim)
-
-    
-    print ("logistic regression checked ...")
-    
-    #linear Regression
-    
-    svc={}
-    
-    for c in  range(2,10,2):
-        for t  in [(0.1)**i for i in range(6)]:
-            
-            log = LinearSVC(C=c, tol=t)
-            log.fit(X_train, y_train)
-            svc[str(c)+" Tol="+str(t)] = log.score(X_test,y_test)  
-                   
-    list_best_param,list_estim = fil_best(svc, list_best_param,list_estim)
-
-    
-    print ("linear regression checked ...")
-    
-    #Ridge Classifier
-    
-    ridge={}
-    
-    for a in  [(0.1)**i for i in range(-6,1,1)]:
-        for t  in [(0.1)**i for i in range(6)]:
-            
-            log = RidgeClassifier(alpha=a, tol=t)
-            log.fit(X_train, y_train)
-            ridge[str(a)+" Tol="+str(t)] = log.score(X_test,y_test) 
-                    
-    list_best_param,list_estim = fil_best(ridge, list_best_param,list_estim)
-
-    
-    print ("ridge cassifier checked ...")
-    
-    # Decision Tree
-    
-    tree={}
+#    decidion tree
+    list_est.append( DecisionTreeClassifier() ) 
     dept=[i for i in range(1,31,5)]
     samp_spl=[i for i in range(2,11)]
-    
-    for a in  dept:
-        for t  in samp_spl:
-            
-            log = DecisionTreeClassifier(max_depth=a, min_samples_split=int(t))
-            log.fit(X_train, y_train)
-            tree[str(a)+" Tol="+str(t)] = log.score(X_test,y_test)                         
-    
-    list_best_param,list_estim = fil_best(tree, list_best_param,list_estim)
-
-    
-    print ("decision tree checked ...")
-    
-    #Random Forest
-    
-    forest = {}
-    dept = [i for i in range(1,32,5)]
-    samp_spl = [i for i in range(2,11)]
-    
-    for a in  dept:
-        for t  in samp_spl:
-            
-            log = RandomForestClassifier(max_depth=a, min_samples_split=int(t))
-            log.fit(X_train, y_train)
-            forest[str(a)+" Tol="+str(t)] = log.score(X_test,y_test)     
-                
-    list_best_param,list_estim = fil_best(forest, list_best_param,list_estim)
-
-    
-    print ("random forest  checked ...")
-    #chosing best estimatot, and fitting it
-    best_ind = list_best_param.index(max(list_best_param))
-    
-    return list_estim[best_ind]
-              
+    params.append(dict(max_depth=dept, min_samples_split=samp_spl))
    
-def fil_best(dic, list_best_param,list_estim):
+#    random forest
+    list_est.append( RandomForestClassifier() ) 
+    dept=[i for i in range(1,31,5)]
+    samp_spl=[i for i in range(2,11)]
+    params.append(dict(max_depth=dept, min_samples_split=samp_spl))
     
-    """take dictionary with params of classifier, list with best parameters 
-    and list with clasificators, returns list with new best parameters 
-    and list with new clasificator """
+   
+
+    for i in range(len (params)):   
+            
+        est = GridSearchCV(estimator=list_est[i], param_grid=params[i], n_jobs=-1)
+        est.fit(X_train, y_train)
     
-    best_key = [key for key,val in dic.items() if val == max(dic.values())]
-    best_value = [val for key,val in dic.items() if val == max(dic.values())]       
+        best_estimtor.append(est.best_estimator_)
+        best_est_skore.append(est.best_score_)
+        
     
-    list_best_param.append(best_value[0])    
-    A = float(re.findall(r'(^.*)\s',best_key[0])[0])
-    B =  float(re.findall(r'[=](.*)$',best_key[0])[0]  )    
-    list_estim.append(RandomForestClassifier(max_depth=A, min_samples_split=int(B)))
-    
-    return list_best_param,list_estim
+    best_ind = best_est_skore.index(max(best_est_skore))
+    print (best_est_skore)
+    return best_estimtor[best_ind]
         
         
 def data_prediction(name1 , name2):
@@ -227,37 +162,36 @@ def data_prediction(name1 , name2):
     choosing best predictor, creates new file with predicted data """
     
     
-    import os 
-    name1 = os.getcwd() + name1 
-    name1 = os.getcwd() + name1
-    try:
-        test = pd.read_csv(name1, delimiter= "\t", encoding= "cp1251")
-    except:
-         raise NameError('check  file or name of file for test')
-         
-    try:
-        train = pd.read_csv(name2, delimiter= "\t",encoding= "cp1251")
-    except:
-         raise NameError('check  file or name of file for train')
+    #do i need try exept???
+    
+    test = pd.read_csv(name1, delimiter= "\t", encoding= "cp1251")
+    train = pd.read_csv(name2, delimiter= "\t",encoding= "cp1251")
+    
  
     print ("load_success")
     
-    #making numeric tax system
+    """"making numeric tax system, because predictor can work with
+     only nummerical data. find all unique  taxs sustems, and give them category.
+    """
+    unic_tax_sys_train = train["taxactionSystem"].unique() 
+    unic_tax_sys_test = test["taxactionSystem"].unique()
+    print(unic_tax_sys_train,unic_tax_sys_test)
     
-        #creating list with unique tax systems
-    li1 = train["taxactionSystem"].unique() 
-    li2 = test["taxactionSystem"].unique()
-    li = list(set(li1).union(li2))
+    unic_tax_sys = list(set(unic_tax_sys_test).union(unic_tax_sys_train)) 
+#    see, that there is not so many tax systems, we can cetegorise them dirrect
+                                           
     
-    #creating numerical taxsystem feature     
-    
-    train["tax_sys"] = tax_sys(train["taxactionSystem"],li)
-    test["tax_sys"] = tax_sys(test["taxactionSystem"],li)
+    train["num_tax_sys"] = tax_sys(train["taxactionSystem"], unic_tax_sys)
+    test["num_tax_sys"] = tax_sys(test["taxactionSystem"], unic_tax_sys)
     
     print ("tax_changing_successful")
     
-    # making new feature with numeric parametr with year of registerion and creation
-    
+    # new features with numeric parametr of year of registration and creation
+    """for getting not so much informatin,  that is useles, 
+    from continusly data date make kategorical.  It will make our life easier,
+    and save us from mistakes of overtraining.  Also it will speedup programm.
+    """
+
     train["age_of_reg"] = how_old(train["regdt"])
     test["age_of_reg"] = how_old(test["regdt"]) 
     
@@ -268,18 +202,20 @@ def data_prediction(name1 , name2):
        
      #dropong useless columns
        
-    train = train.drop(["regdt",u"OrgCreationDate", "taxactionSystem"],axis = 1)
-    test = test.drop(["regdt","OrgCreationDate", "taxactionSystem"],axis = 1)
-    
+    train = train.drop(["regdt","OrgCreationDate", "taxactionSystem"], axis = 1)
+    test = test.drop(["regdt","OrgCreationDate", "taxactionSystem"], axis = 1)
+     
     print("drping_useless_success")
     
     #filling missing data with median
     
     for col in train:
-        train[col] = train[col].fillna(int(round(train[col].median()))).astype(int)
+        mediana = int(round(train[col].median()))
+        train[col] = train[col].fillna(mediana).astype(int)
     
     for col in test:
-        test[col] = test[col].fillna(int(round(test[col].median()))).astype(int)
+        mediana = int(round(test[col].median()))
+        test[col] = test[col].fillna(mediana).astype(int)
 
     print("fillna_with_median_success")
    
@@ -299,8 +235,10 @@ def data_prediction(name1 , name2):
     drop_list=["id"] 
         
     for i in indices:
-        if cor[i[0]].sum()>cor[i[1]].sum() and i[0]not in drop_list:
+        
+        if cor[i[0]].sum() > cor[i[1]].sum() and i[0] not in drop_list:
             drop_list.append(i[0])
+            
         else:
             drop_list.append(i[1])
             
@@ -315,17 +253,19 @@ def data_prediction(name1 , name2):
     
     print("features used for prediction:", norm_data.columns.values.tolist())
     
-    est = estimate(norm_data,train["is_prolong"])
+    est = find_best_estimator(norm_data,train["is_prolong"])
 
-#    est = list_estim[best_ind]
-    
+
     print("best estimaor :",est)
     
     
     est.fit(norm_data, train["is_prolong"])
-    prediction = est.predict(test)
-    out = prediction
-    test["is_prolong"] = out
+    print (est.score(norm_data, train["is_prolong"]))
+    
+#    prediction = est.predict(test)
+#    
+#    out = prediction
+    test["is_prolong"] = est.predict(test)
     test["id"] = id_test
 
 
@@ -333,9 +273,9 @@ def data_prediction(name1 , name2):
     test.to_csv("test_predict.csv", columns = ["id", "is_prolong"], encoding="utf-8",index=False)
 
 
-if __name__=="__main__":
+if __name__ == "__main__":
     if len(sys.argv) == 1:
-        data_prediction("test.csv", "train.csv")
+        data_prediction('test.csv', 'train.csv')
         
     elif len(sys.argv) == 3:
         data_prediction(sys.argv[1],sys.argv[2])
